@@ -98,8 +98,6 @@ async def UpdateTask(task_id: int, req: TaskUpdate):
         content = { "error" : f"No task with id '{task_id}'" }
     )
 
-        
-
 
 @app.delete("/tasks/{task_id}")
 async def DeleteTask(task_id: int):
