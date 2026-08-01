@@ -1,7 +1,11 @@
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
 app = FastAPI()
+
+class TaskCreate(BaseModel):
+    title : str
 
 tasks = [
     {
@@ -11,7 +15,7 @@ tasks = [
     },
     {
         "id" : 1,
-        "title" : "Specify the port number for future purposes like when you want to tell the frontend to send requests to a backend, it needs to know the port the backend uses.",
+        "title" : "Specify the port number.",
         "done" : True
     },
     {
@@ -43,3 +47,22 @@ async def GetTask(task_id: int):
         status_code=404,
         content={"error": f"Task {task_id} not found"}
     )
+
+
+@app.post("/tasks")
+async def AddTask(req: TaskCreate):
+    id = len(tasks)
+
+    if (req.title is None or req.title.strip() == ""):
+        return JSONResponse(
+            status_code=400,
+            content={"error": "Title is required" }
+        )
+    task = {
+        "id" : id,
+        "title" : req.title.strip(),
+        "done" : False
+    }
+
+    tasks.append(task)
+    return task
