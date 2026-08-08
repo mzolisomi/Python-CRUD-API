@@ -1,34 +1,21 @@
-from fastapi import FastAPI, Response
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from fastapi import FastAPI, Response, Depends
+from fastapi.responses import JSONResponse
 from typing import Optional
+from database import get_db
+from sqlalchemy.orm import Session
+from models import Task
+from typing import Any
 
 app = FastAPI()
 
+
 class TaskCreate(BaseModel):
-    title : str
+    title : Optional[str] = None
 
 class TaskUpdate(BaseModel):
     title : Optional[str] = None
     done : Optional[bool] = None
-
-tasks = [
-    {
-        "id" : 0,
-        "title" : "initialise the web framework",
-        "done" : True
-    },
-    {
-        "id" : 1,
-        "title" : "Specify the port number.",
-        "done" : True
-    },
-    {
-        "id" : 2,
-        "title" : "Create the endpoints",
-        "done" : True
-    }
-]
 
 @app.get("/")
 async def HelloWorld():
@@ -36,44 +23,44 @@ async def HelloWorld():
 
 
 @app.get('/health')
-async def HealthStatus():
+async def HealthStatus() -> dict[str, Any]:
     return { "name" : "Task API", "version" : "1.0" , "endpoints" : ["/tasks"] }
-
+# DONE
 @app.get('/tasks')
-async def Tasks():
+async def Tasks(db: Session = Depends(get_db)):
+    tasks = db.query(Task).all()
     return tasks
 
+# DONE
 @app.get('/tasks/{task_id}')
-async def GetTask(task_id: int):
-    for task in tasks:
-        if task["id"] == task_id:
-            return task
-    return JSONResponse(
-        status_code=404,
-        content={"error": f"Task {task_id} not found"}
-    )
+async def GetTask(task_id: int, db: Session = Depends(get_db)):
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if task is None:
+        return JSONResponse(
+            status_code=404,
+            content={"error": f"Task {task_id} not found"}
+        )
+    
+    return task
 
-
+# DONE
 @app.post("/tasks")
-async def AddTask(req: TaskCreate):
-    id = len(tasks)
-
+async def AddTask(req: TaskCreate, db: Session = Depends(get_db)):
     if (req.title is None or req.title.strip() == ""):
         return JSONResponse(
             status_code=400,
             content={"error": "Title is required" }
         )
-    task = {
-        "id" : id,
-        "title" : req.title.strip(),
-        "done" : False
-    }
 
-    tasks.append(task)
-    return task
+    new_task = Task(title=req.title.strip(), done=False)
+    db.add(new_task)
+    db.commit()
+    db.refresh(new_task)
+    return new_task
 
+# DONE
 @app.put("/tasks/{task_id}")
-async def UpdateTask(task_id: int, req: TaskUpdate):
+async def UpdateTask(task_id: int, req: TaskUpdate, db: Session = Depends(get_db)):
     if req.title is None and req.done is None:
         return JSONResponse(
             status_code = 400,
@@ -86,25 +73,31 @@ async def UpdateTask(task_id: int, req: TaskUpdate):
             content={ "error" : "Please provide a title"}
         )
 
-    for task in tasks:
-        if task["id"] == task_id:
-            if req.title is not None:
-                task["title"] = req.title
-            if req.done is not None:
-                task["done"] = req.done
-            return task
-    return JSONResponse(
-        status_code = 404,
-        content = { "error" : f"No task with id '{task_id}'" }
-    )
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if task is None:
+        return JSONResponse(
+            status_code = 404,
+            content = { "error" : f"No task with id '{task_id}'" }
+        )
+    if req.title is not None:
+        task.title = req.title
+    if req.done is not None:
+        task.done = req.done
+
+    db.commit()
+    db.refresh(task)
+    return task
 
 
+# DONE
 @app.delete("/tasks/{task_id}")
-async def DeleteTask(task_id: int):
-    for task in tasks:
-        if task["id"] == task_id:
-            tasks.remove(task)
-            return Response(status_code = 204)
+async def DeleteTask(task_id: int, db: Session = Depends(get_db)):
+    task = db.query(Task).filter(Task.id == task_id).first()
+
+    if task is not None:
+        db.delete(task)
+        db.commit()
+        return Response(status_code = 204)
     return Response(
             status_code = 404
         )

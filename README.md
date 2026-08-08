@@ -40,3 +40,17 @@ curl -X 'POST' \
 
 
 <img width="1920" height="1080" alt="Screenshot 2026-08-01 222050" src="https://github.com/user-attachments/assets/c0f883eb-7eae-4e52-875f-2f2e8e2b58c3" />
+
+
+Why PostgreSQL was chosen:
+
+I am new to FastAPI and I knew only the basics of Python so personally I did not want to take the steep learning curve of choosing the SQLite database while also learning FAstAPI.
+
+The database file is stored locally on my PostgreSQL server.
+
+to start the project simple run: 
+```
+uvicorn main:app --reload
+
+```
+
