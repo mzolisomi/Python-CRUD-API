@@ -54,3 +54,5 @@ uvicorn main:app --reload
 
 ```
 
+<img width="1920" height="1080" alt="Screenshot 2026-08-08 195011" src="https://github.com/user-attachments/assets/ca6afa9e-3096-474f-9fc6-8c14b1866ae7" />
+
