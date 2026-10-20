@@ -1,17 +1,33 @@
-from pydantic import BaseModel
-from fastapi import FastAPI, Response, Depends
+from pydantic import BaseModel, Field, EmailStr
+from fastapi import FastAPI, Response, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from typing import Optional
 from database import get_db
 from sqlalchemy.orm import Session
 from models import Task
 from typing import Any
+import os 
+from dotenv import load_dotenv
+from supabase import create_client, AuthApiError
+import httpx
+
+load_dotenv()
+
+SUPABASE_URL: str = os.environ["SUPABASE_URL"]
+SUPABASE_KEY: str = os.environ["SUPABASE_KEY"]
+
+print(repr(SUPABASE_URL))
 
 app = FastAPI()
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+class NewUser(BaseModel):
+    email: EmailStr = Field(..., description="Valid email address")
+    password:str = Field(..., min_length=8, description="Password with minimun of 8 characters")
 
 class TaskCreate(BaseModel):
     title : Optional[str] = None
+
 
 class TaskUpdate(BaseModel):
     title : Optional[str] = None
@@ -20,6 +36,78 @@ class TaskUpdate(BaseModel):
 @app.get("/")
 async def HelloWorld():
     return { "message" : "Hello, world" }
+
+
+@app.post("/auth/signup", status_code=201)
+async def Register(req: NewUser, db: Session = Depends(get_db)):
+    if not req.email.strip() or not req.password.strip():
+        return JSONResponse(status_code=400, content={"error": "Email and password are required"})
+
+    try:
+        response = supabase.auth.sign_up(
+            {
+                "email": req.email,
+                "password": req.password
+            }
+        )
+    except AuthApiError as e:
+        message_text: str = (e.message or "").lower()
+
+        if (
+            e.status == 409
+            or e.code == "user_already_exists"
+            or "already registered" in message_text
+            or "already exists" in message_text
+        ):
+            return JSONResponse(
+                status_code=409,
+                content={"error": "An account with this email already exists"}
+            )
+
+        return JSONResponse(
+            status_code=e.status or 400,
+            content={"error": e.message}
+        )
+    except httpx.RequestError:
+        return JSONResponse(
+            status_code=503,
+            content={"error": "Could not reach the authentication service"}
+        )
+
+    if response.user is None:
+        raise HTTPException(status_code=500, detail="Auth response did not include a user")
+
+    user_data = response.user.model_dump(mode="json")  
+    return JSONResponse(
+        status_code=201,
+        content={
+            "user": user_data,
+            "message" : "User registered successfully"
+        }
+    )
+
+@app.post("/auth/login", status_code=200)
+async def Login(req: NewUser, db: Session = Depends(get_db)):
+    response = supabase.auth.sign_in_with_password(
+        {
+            "email": req.email,
+            "password": req.password
+        }
+    )
+
+    if response.user is None:
+        return JSONResponse(
+            status_code=400,
+            content={ "error" : "Invalid email or password" }
+        )
+    user_data = response.user.model_dump(mode="json")
+    return JSONResponse(
+        status_code=200,
+        content={
+            "user": user_data,
+            "message" : "User logged in successfully"
+        }
+    )
 
 
 @app.get('/health')

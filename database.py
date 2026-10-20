@@ -14,7 +14,6 @@ DB_PORT: str | None = os.getenv("DB_Port")
 DB_NAME: str | None = os.getenv("DB_Name")
 DATABASE_URL: str | None = os.getenv("DATABASE_URL")
 
-#conn_string = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 conn_string = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
 Base = declarative_base()
