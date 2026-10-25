@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, EmailStr
-from fastapi import FastAPI, Response, Depends, HTTPException
+from fastapi import FastAPI, Response, Depends, HTTPException, Header
 from fastapi.responses import JSONResponse
 from typing import Optional
 from database import get_db
@@ -37,6 +37,35 @@ class TaskUpdate(BaseModel):
 async def HelloWorld():
     return { "message" : "Hello, world" }
 
+@app.get("/public/info")
+async def HelloStranger():
+    return JSONResponse(
+        status_code=200,
+        content={ "message" : "Hello Stranger! This info is public." }
+    )
+    
+
+@app.get("/protected/profile")
+async def GetProfile(authorization: Optional[str] = Header(default=None)):
+    if not authorization or not authorization.startswith("Bearer "):
+        return JSONResponse(
+            status_code=401,
+            content={"error": "Access token required"}
+        )
+
+    access_token = authorization.removeprefix("Bearer ").strip()
+
+    if not access_token:
+        return JSONResponse(
+            status_code=401,
+            content={"error": "Access token required"}
+        )
+
+
+    return JSONResponse(
+        status_code=200,
+        content={"message" : "You are logged in" }
+    )
 
 @app.post("/auth/signup", status_code=201)
 async def Register(req: NewUser, db: Session = Depends(get_db)):
@@ -88,26 +117,32 @@ async def Register(req: NewUser, db: Session = Depends(get_db)):
 
 @app.post("/auth/login", status_code=200)
 async def Login(req: NewUser, db: Session = Depends(get_db)):
-    response = supabase.auth.sign_in_with_password(
-        {
-            "email": req.email,
-            "password": req.password
-        }
-    )
-
-    if response.user is None:
-        return JSONResponse(
-            status_code=400,
-            content={ "error" : "Invalid email or password" }
+    try:
+        response = supabase.auth.sign_in_with_password(
+            {
+                "email": req.email,
+                "password": req.password
+            }
         )
-    user_data = response.user.model_dump(mode="json")
-    return JSONResponse(
-        status_code=200,
-        content={
-            "user": user_data,
-            "message" : "User logged in successfully"
-        }
-    )
+
+        if response.user is None:
+            return JSONResponse(
+                status_code=401,
+                content={ "error" : "Invalid email or password" }
+            )
+        user_data = response.user.model_dump(mode="json")
+        return JSONResponse(
+            status_code=200,
+            content={
+                "user": user_data,
+                "message" : "User logged in successfully"
+            }
+        )
+    except AuthApiError:
+        return JSONResponse(
+            status_code=401,
+            content={"error" : "Invalid Credentials"}
+        )
 
 
 @app.get('/health')
@@ -189,3 +224,5 @@ async def DeleteTask(task_id: int, db: Session = Depends(get_db)):
     return Response(
             status_code = 404
         )
+
+
