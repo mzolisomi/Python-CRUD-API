@@ -61,10 +61,22 @@ async def GetProfile(authorization: Optional[str] = Header(default=None)):
             content={"error": "Access token required"}
         )
 
-
+    try:
+        user_response = supabase.auth.get_user(access_token)
+    except AuthApiError:
+        return JSONResponse(
+            status_code=401,
+            content={"error" : "Invalid or expired token"}
+        )
+    
+    if user_response is None or user_response.user is None:
+        return JSONResponse(
+            status_code=401,
+            content={ "error" : "Invalid or expired token"}
+        )
     return JSONResponse(
         status_code=200,
-        content={"message" : "You are logged in" }
+        content={"message" : "You are logged in", "email" : user_response.user.email }
     )
 
 @app.post("/auth/signup", status_code=201)
@@ -130,11 +142,12 @@ async def Login(req: NewUser, db: Session = Depends(get_db)):
                 status_code=401,
                 content={ "error" : "Invalid email or password" }
             )
-        user_data = response.user.model_dump(mode="json")
+          
         return JSONResponse(
             status_code=200,
             content={
-                "user": user_data,
+                "access_token": response.session.access_token,
+                "refresh_token": response.session.refresh_token,
                 "message" : "User logged in successfully"
             }
         )
